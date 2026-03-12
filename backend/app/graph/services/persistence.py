@@ -178,6 +178,24 @@ def save_result(run_id: str, result: object) -> None:
         )
 
 
+def save_intro_data(
+    run_id: str,
+    questions: list,
+    answers: dict,
+) -> None:
+    """Write intro_data JSON to the runs.intro_data column."""
+    now = _now_iso()
+    intro_json = json.dumps({
+        "questions": [q.model_dump() for q in questions],
+        "answers": answers,
+    })
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "UPDATE runs SET intro_data = ?, updated_at = ? WHERE run_id = ?",
+            (intro_json, now, run_id),
+        )
+
+
 def load_run(run_id: str) -> Optional[dict]:
     """Return the runs row as a dict, or None if not found."""
     with sqlite3.connect(DB_PATH) as conn:

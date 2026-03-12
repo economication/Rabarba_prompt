@@ -166,6 +166,25 @@ Return ONLY a valid JSON object (no other text):
 }"""
 
 # ---------------------------------------------------------------------------
+# Intro Analyzer (used by /api/intro to generate dynamic follow-up questions)
+# ---------------------------------------------------------------------------
+
+INTRO_ANALYZER_SYSTEM = """You are a requirements clarification assistant. Given a task brief and optional \
+target agent, generate 1–2 targeted follow-up questions that would most improve \
+the quality of the implementation prompt.
+
+Rules:
+- Focus on ambiguities, missing constraints, or unclear output expectations
+- Do NOT ask questions already answerable from the task brief
+- Do NOT ask about language, framework, output format, constraints, or testing — \
+these are already covered by fixed questions
+- Maximum 2 questions
+- type is always "text"
+
+Return ONLY a valid JSON array with no other text:
+[{"id": "dq_0", "question": "..."}, {"id": "dq_1", "question": "..."}]"""
+
+# ---------------------------------------------------------------------------
 # Refiner
 # ---------------------------------------------------------------------------
 

@@ -26,11 +26,21 @@ export interface NodeCostSummary {
   total_output_tokens: number
 }
 
+export interface IntroQuestion {
+  id: string
+  question: string
+  type: 'text' | 'boolean'
+}
+
 export interface OptimizeRequest {
+  run_id?: string
   task_brief: string
   repo_path?: string | null
+  github_url?: string | null
   target_agent?: string | null
   max_iterations?: number
+  intro_questions?: IntroQuestion[] | null
+  intro_answers?: Record<string, string> | null
 }
 
 export interface OptimizeResponse {
@@ -49,6 +59,7 @@ export interface OptimizeResponse {
   total_input_tokens: number
   total_output_tokens: number
   cost_by_node: NodeCostSummary[]
+  is_stable: boolean
 }
 
 export interface RunSummary {
@@ -93,9 +104,37 @@ export interface RunDetailResponse {
   final_result: OptimizeResponse | null
 }
 
-export async function optimizePrompt(
+export interface IntroRequest {
+  task_brief: string
+  target_agent?: string | null
+}
+
+export interface IntroResponse {
+  fixed_questions: IntroQuestion[]
+  dynamic_questions: IntroQuestion[]
+}
+
+export async function introRequest(request: IntroRequest): Promise<IntroResponse> {
+  const response = await fetch('/api/intro', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`API error ${response.status}: ${errorText}`)
+  }
+  return (await response.json()) as IntroResponse
+}
+
+export async function optimizeWithStream(
   request: OptimizeRequest,
-): Promise<OptimizeResponse> {
+  onStageStart: (stage: string, iteration: number) => void,
+  onStageComplete: (stage: string, iteration: number, durationMs: number) => void,
+  onResult: (response: OptimizeResponse) => void,
+  onCancelled: (response: OptimizeResponse) => void,
+  onError: (message: string) => void,
+): Promise<void> {
   const response = await fetch('/api/optimize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -104,10 +143,80 @@ export async function optimizePrompt(
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(`API error ${response.status}: ${errorText}`)
+    onError(`API error ${response.status}: ${errorText}`)
+    return
   }
 
-  return (await response.json()) as OptimizeResponse
+  if (!response.body) {
+    onError('No response body from server')
+    return
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const jsonStr = line.slice(6).trim()
+      if (!jsonStr) continue
+
+      let event: Record<string, unknown>
+      try {
+        event = JSON.parse(jsonStr)
+      } catch {
+        continue
+      }
+
+      const type = event.type as string
+      if (type === 'stage_start') {
+        onStageStart(event.stage as string, event.iteration as number)
+      } else if (type === 'stage_complete') {
+        onStageComplete(
+          event.stage as string,
+          event.iteration as number,
+          event.duration_ms as number,
+        )
+      } else if (type === 'result') {
+        onResult(event.data as OptimizeResponse)
+        return
+      } else if (type === 'cancelled') {
+        onCancelled(event.data as OptimizeResponse)
+        return
+      } else if (type === 'error') {
+        onError(event.message as string)
+        return
+      }
+    }
+  }
+}
+
+export async function cancelRun(runId: string): Promise<void> {
+  await fetch(`/api/runs/${runId}/cancel`, { method: 'POST' })
+}
+
+/** @deprecated Use optimizeWithStream instead */
+export async function optimizePrompt(
+  request: OptimizeRequest,
+): Promise<OptimizeResponse> {
+  return new Promise((resolve, reject) => {
+    optimizeWithStream(
+      request,
+      () => {},
+      () => {},
+      resolve,
+      resolve,
+      reject,
+    )
+  })
 }
 
 export async function listRuns(): Promise<RunSummary[]> {

@@ -102,6 +102,7 @@ class PromptOptimizerState(TypedDict):
     # ---- Input (set once at graph start, never mutated) ----
     task_brief: str
     repo_path: Optional[str]
+    github_url: Optional[str]
     target_agent: Optional[str]
     max_iterations: int                  # default 3
 

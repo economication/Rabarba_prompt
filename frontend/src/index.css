@@ -831,6 +831,217 @@ body {
 }
 
 /* -----------------------------------------------------------------------
+   Form actions row
+   ----------------------------------------------------------------------- */
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+/* -----------------------------------------------------------------------
+   Radio group
+   ----------------------------------------------------------------------- */
+
+.radio-group {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  font-weight: 400;
+}
+
+/* -----------------------------------------------------------------------
+   Secondary / ghost button variants
+   ----------------------------------------------------------------------- */
+
+.submit-btn--secondary {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+
+.submit-btn--secondary:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.submit-btn--ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.submit-btn--ghost:hover:not(:disabled) {
+  background: var(--color-bg);
+}
+
+/* -----------------------------------------------------------------------
+   Field error
+   ----------------------------------------------------------------------- */
+
+.field-error {
+  font-size: 12px;
+  color: var(--color-error-text);
+  margin-top: 4px;
+}
+
+/* -----------------------------------------------------------------------
+   Intro / step UI
+   ----------------------------------------------------------------------- */
+
+.step-header {
+  margin-bottom: 1rem;
+}
+
+.step-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 0.25rem;
+}
+
+.step-subtitle {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.intro-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* -----------------------------------------------------------------------
+   Stage progress component
+   ----------------------------------------------------------------------- */
+
+.stage-progress {
+  padding: 0;
+}
+
+.stage-progress__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.stage-progress__title {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+}
+
+.cancel-btn {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--radius);
+  background: transparent;
+  border: 1px solid var(--color-error-border);
+  color: var(--color-error-text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.cancel-btn:hover {
+  background: var(--color-error-bg);
+}
+
+.stage-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stage-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 13px;
+  padding: 3px 0;
+}
+
+.stage-icon {
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.stage-item--pending .stage-icon {
+  color: var(--color-text-muted);
+}
+
+.stage-item--active .stage-icon {
+  color: var(--color-primary);
+}
+
+.stage-item--complete .stage-icon {
+  color: var(--color-pass-text);
+}
+
+.stage-item--error .stage-icon {
+  color: var(--color-error-text);
+}
+
+.stage-name {
+  flex: 1;
+}
+
+.stage-item--pending .stage-name {
+  color: var(--color-text-muted);
+}
+
+.stage-item--active .stage-name {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.stage-duration {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+.stage-duration--live {
+  color: var(--color-primary);
+}
+
+.spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* warning banner */
+.banner--warning {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning-text);
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+}
+
+/* -----------------------------------------------------------------------
    Responsive
    ----------------------------------------------------------------------- */
 
