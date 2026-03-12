@@ -599,6 +599,238 @@ body {
 }
 
 /* -----------------------------------------------------------------------
+   App header tabs
+   ----------------------------------------------------------------------- */
+
+.app-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.app-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.tab-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 0.15s;
+}
+
+.tab-btn:hover {
+  background: #ebebef;
+  color: var(--color-text);
+}
+
+.tab-btn--active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.tab-btn--active:hover {
+  background: var(--color-primary-hover);
+}
+
+/* -----------------------------------------------------------------------
+   Status badges
+   ----------------------------------------------------------------------- */
+
+.status-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+
+.status-badge--completed {
+  background: var(--color-pass-bg);
+  color: var(--color-pass-text);
+  border: 1px solid var(--color-pass-border);
+}
+
+.status-badge--failed {
+  background: var(--color-fail-bg);
+  color: var(--color-fail-text);
+  border: 1px solid var(--color-fail-border);
+}
+
+.status-badge--running {
+  background: #e6f4ff;
+  color: #0066cc;
+  border: 1px solid #91caff;
+}
+
+.status-badge--pending {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+/* -----------------------------------------------------------------------
+   Run History
+   ----------------------------------------------------------------------- */
+
+.run-history {
+  margin-top: 0;
+}
+
+.run-history-empty {
+  margin-top: 0;
+}
+
+.run-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.run-history-loading {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: 8px 0;
+}
+
+.run-history-row {
+  cursor: pointer;
+}
+
+.run-history-row:hover td {
+  background: #f0f4ff !important;
+}
+
+/* -----------------------------------------------------------------------
+   Run Detail
+   ----------------------------------------------------------------------- */
+
+.run-detail {
+  margin-top: 0;
+}
+
+.run-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+/* -----------------------------------------------------------------------
+   Diff panel
+   ----------------------------------------------------------------------- */
+
+.diff-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+
+.diff-modal {
+  width: 100%;
+  max-width: 860px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.diff-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.diff-meta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.diff-meta-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.diff-content {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: #fafafa;
+  overflow-x: auto;
+}
+
+.diff-added {
+  background: #e6ffec;
+  color: #1a7f37;
+}
+
+.diff-removed {
+  background: #ffebe9;
+  color: #b00020;
+  text-decoration: line-through;
+}
+
+.diff-context {
+  color: var(--color-text);
+}
+
+/* -----------------------------------------------------------------------
+   Extended verdict badges for history DB values
+   ----------------------------------------------------------------------- */
+
+.verdict-badge--all_pass {
+  background: var(--color-pass-bg);
+  color: var(--color-pass-text);
+  border: 1px solid var(--color-pass-border);
+}
+
+.verdict-badge--has_failures {
+  background: var(--color-fail-bg);
+  color: var(--color-fail-text);
+  border: 1px solid var(--color-fail-border);
+}
+
+.verdict-badge--uncertain_only {
+  background: var(--color-uncertain-bg);
+  color: var(--color-uncertain-text);
+  border: 1px solid var(--color-uncertain-border);
+}
+
+.verdict-badge--unknown {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+/* -----------------------------------------------------------------------
    Responsive
    ----------------------------------------------------------------------- */
 

@@ -82,6 +82,17 @@ class FinalSummary(BaseModel):
     iteration_count: int
 
 
+class NodeUsage(BaseModel):
+    node_name: str
+    iteration: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    duration_ms: int
+    model: str
+    vendor: str
+
+
 # ---------------------------------------------------------------------------
 # Main LangGraph state
 # ---------------------------------------------------------------------------
@@ -127,6 +138,9 @@ class PromptOptimizerState(TypedDict):
     # On error: latest successfully assembled prompt, or empty string
     final_prompt: str
     final_summary: Optional[FinalSummary]
+
+    # ---- Cost tracking ----
+    node_usages: list[NodeUsage]             # populated by LLM nodes; default: []
 
     # ---- Error tracking ----
     last_error: Optional[str]

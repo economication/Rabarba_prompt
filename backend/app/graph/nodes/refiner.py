@@ -2,7 +2,7 @@
 Refiner node.
 
 Input:  current_prompt, review_result (FAIL issues only)
-Output: current_prompt (updated)
+Output: current_prompt (updated), node_usages (updated)
 
 LLM: Anthropic claude-sonnet-4-5, temperature 0.4
 
@@ -21,7 +21,7 @@ iteration_count is NOT incremented here — incremented after next Reviewer comp
 
 import json
 
-from app.graph.state import PromptOptimizerState
+from app.graph.state import NodeUsage, PromptOptimizerState
 from app.graph.services.llm.anthropic_provider import AnthropicProvider
 from app.graph.prompts.system_prompts import REFINER_SYSTEM
 
@@ -50,10 +50,24 @@ def refiner_node(state: PromptOptimizerState) -> dict:
         "Apply the specified fixes. Return only the refined prompt text."
     )
 
-    refined_prompt: str = provider.generate(
+    result = provider.generate(
         system_prompt=REFINER_SYSTEM,
         user_prompt=user_prompt,
         temperature=0.4,
     )
 
-    return {"current_prompt": refined_prompt}
+    usage = NodeUsage(
+        node_name="refiner",
+        iteration=state.get("iteration_count", 0),
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        cost_usd=result.cost_usd,
+        duration_ms=result.duration_ms,
+        model=provider.model,
+        vendor="anthropic",
+    )
+
+    return {
+        "current_prompt": result.data,
+        "node_usages": [*state.get("node_usages", []), usage],
+    }

@@ -11,6 +11,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.graph.services.persistence import init_db
+
+init_db()
 
 app = FastAPI(
     title="Rabarba Prompt API",

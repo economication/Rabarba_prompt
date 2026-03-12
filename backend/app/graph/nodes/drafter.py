@@ -2,14 +2,14 @@
 Drafter node.
 
 Input:  structured_requirements, repo_context, target_agent
-Output: current_prompt  (first draft — no risk section yet)
+Output: current_prompt (first draft — no risk section yet), node_usages (updated)
 
 LLM: Anthropic claude-sonnet-4-5, temperature 0.7
 """
 
 import json
 
-from app.graph.state import PromptOptimizerState
+from app.graph.state import NodeUsage, PromptOptimizerState
 from app.graph.services.llm.anthropic_provider import AnthropicProvider
 from app.graph.prompts.system_prompts import DRAFTER_SYSTEM
 
@@ -35,10 +35,24 @@ def drafter_node(state: PromptOptimizerState) -> dict:
         "Do NOT include a risk assessment section."
     )
 
-    draft_prompt: str = provider.generate(
+    result = provider.generate(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         temperature=0.7,
     )
 
-    return {"current_prompt": draft_prompt}
+    usage = NodeUsage(
+        node_name="drafter",
+        iteration=state.get("iteration_count", 0),
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        cost_usd=result.cost_usd,
+        duration_ms=result.duration_ms,
+        model=provider.model,
+        vendor="anthropic",
+    )
+
+    return {
+        "current_prompt": result.data,
+        "node_usages": [*state.get("node_usages", []), usage],
+    }

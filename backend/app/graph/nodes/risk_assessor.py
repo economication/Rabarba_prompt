@@ -2,7 +2,7 @@
 Risk Assessor node.
 
 Input:  current_prompt, repo_context, structured_requirements
-Output: risk_report
+Output: risk_report, node_usages (updated)
 
 LLM: Anthropic claude-sonnet-4-5, temperature 0.2
 
@@ -12,7 +12,7 @@ If no repo_context: produce a minimal report and state this in rationale.
 
 import json
 
-from app.graph.state import PromptOptimizerState, RiskReport
+from app.graph.state import NodeUsage, PromptOptimizerState, RiskReport
 from app.graph.services.llm.anthropic_provider import AnthropicProvider
 from app.graph.prompts.system_prompts import RISK_ASSESSOR_SYSTEM
 
@@ -42,11 +42,25 @@ def risk_assessor_node(state: PromptOptimizerState) -> dict:
         "Perform a risk assessment on this implementation prompt."
     )
 
-    risk_report: RiskReport = provider.generate_structured(
+    result = provider.generate_structured(
         system_prompt=RISK_ASSESSOR_SYSTEM,
         user_prompt=user_prompt,
         schema=RiskReport,
         temperature=0.2,
     )
 
-    return {"risk_report": risk_report}
+    usage = NodeUsage(
+        node_name="risk_assessor",
+        iteration=state.get("iteration_count", 0),
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        cost_usd=result.cost_usd,
+        duration_ms=result.duration_ms,
+        model=provider.model,
+        vendor="anthropic",
+    )
+
+    return {
+        "risk_report": result.data,
+        "node_usages": [*state.get("node_usages", []), usage],
+    }

@@ -1,31 +1,70 @@
 """
 FastAPI routes for Rabarba Prompt.
 
-POST /api/optimize  — run the full prompt optimization workflow
-GET  /api/health    — liveness check
+POST /api/optimize        — run the full prompt optimization workflow
+GET  /api/runs            — list recent runs (last 50)
+GET  /api/runs/{run_id}   — run detail with prompt_versions, cost, final result
+GET  /api/health          — liveness check
 
 Error contract:
   - On graph error: return 200 with stop_reason="error" and last_error populated.
   - Never return 5xx for workflow errors.
+  - Persistence failures are logged and silently swallowed.
   - All Pydantic validation errors produce 422 (FastAPI default).
 """
 
+import logging
 import uuid
+from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator
 
+from app.api.schemas import (
+    CostSummary,
+    NodeCostSummary,
+    PromptVersionOut,
+    RunDetailResponse,
+    RunSummary,
+)
 from app.graph.graph import graph
-from app.graph.state import PromptOptimizerState
+from app.graph.services.persistence import (
+    create_run,
+    list_runs,
+    load_run_detail,
+    save_result,
+    save_run_artifacts,
+    update_run_status,
+)
+from app.graph.state import NodeUsage, PromptOptimizerState
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
+STATUS_MAP = {
+    "all_pass":       "completed",
+    "repeated_fail":  "completed",
+    "max_iterations": "completed",
+    "uncertain_only": "completed",
+    "error":          "failed",
+}
+
+# Maps PromptVersion.reviewer_verdict → PromptVersionOut.reviewer_verdict
+_VERDICT_MAP = {
+    "accept":         "all_pass",
+    "revise":         "has_failures",
+    "human_required": "uncertain_only",
+    "":               "",
+}
+
+_STABLE_STOP_REASONS = {"all_pass", "uncertain_only"}
+
 
 # ---------------------------------------------------------------------------
-# Request / Response schemas (API layer — separate from internal state schemas)
+# Request / Response schemas
 # ---------------------------------------------------------------------------
-
 
 class OptimizeRequest(BaseModel):
     task_brief: str
@@ -74,6 +113,7 @@ class HistoryItemOut(BaseModel):
 
 
 class OptimizeResponse(BaseModel):
+    run_id: str
     final_prompt: str
     fail_signature: str
     stop_reason: str
@@ -82,30 +122,92 @@ class OptimizeResponse(BaseModel):
     review_summary: str
     last_error: Optional[str]
     scan_warnings: list[str]
-    # Issues from the FINAL review cycle only
     review_issues: list[ReviewIssueOut]
-    # Projection of internal prompt_versions — not a separate data structure
     history: list[HistoryItemOut]
+    total_cost_usd: float
+    total_input_tokens: int
+    total_output_tokens: int
+    cost_by_node: list[NodeCostSummary]
 
 
 # ---------------------------------------------------------------------------
-# Routes
+# Helpers
 # ---------------------------------------------------------------------------
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _aggregate_costs(node_usages: list[NodeUsage]) -> tuple[float, int, int, list[NodeCostSummary]]:
+    """Return (total_cost, total_input, total_output, by_node_list)."""
+    by_node: dict[str, list[NodeUsage]] = defaultdict(list)
+    for u in node_usages:
+        by_node[u.node_name].append(u)
+
+    summaries = [
+        NodeCostSummary(
+            node_name=name,
+            call_count=len(usages),
+            total_cost_usd=sum(u.cost_usd for u in usages),
+            total_input_tokens=sum(u.input_tokens for u in usages),
+            total_output_tokens=sum(u.output_tokens for u in usages),
+        )
+        for name, usages in by_node.items()
+    ]
+    total_cost = sum(s.total_cost_usd for s in summaries)
+    total_in = sum(s.total_input_tokens for s in summaries)
+    total_out = sum(s.total_output_tokens for s in summaries)
+    return total_cost, total_in, total_out, summaries
+
+
+def _build_prompt_versions_out(
+    run_id: str,
+    prompt_versions: list,
+    stop_reason: str,
+) -> list[PromptVersionOut]:
+    now = _now_iso()
+    result = []
+    last_idx = len(prompt_versions) - 1
+    for i, v in enumerate(prompt_versions):
+        mapped_verdict = _VERDICT_MAP.get(v.reviewer_verdict, v.reviewer_verdict)
+        is_stable = (i == last_idx) and (stop_reason in _STABLE_STOP_REASONS)
+        result.append(
+            PromptVersionOut(
+                run_id=run_id,
+                iteration=v.iteration,
+                source="assembled",
+                prompt_text=v.prompt_text,
+                fail_signature=v.fail_signature,
+                reviewer_verdict=mapped_verdict,
+                is_stable=is_stable,
+                created_at=now,
+            )
+        )
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
 @router.post("/api/optimize", response_model=OptimizeResponse)
 def optimize_prompt(request: OptimizeRequest) -> OptimizeResponse:
-    """
-    Run the LangGraph prompt optimization workflow synchronously.
-    FastAPI runs sync route handlers in a thread pool automatically.
-    """
+    run_id = str(uuid.uuid4())
+    config_dict = {
+        "target_agent": request.target_agent,
+        "max_iterations": request.max_iterations or 3,
+        "reviewer_config": {},
+    }
+
+    create_run(run_id, request.task_brief, config_dict)
+    update_run_status(run_id, "running")
+
     initial_state: PromptOptimizerState = {
         "task_brief": request.task_brief,
         "repo_path": request.repo_path,
         "target_agent": request.target_agent,
         "max_iterations": request.max_iterations or 3,
-        # EXTENSION POINT: run_id is available for future persistence
-        "run_id": str(uuid.uuid4()),
+        "run_id": run_id,
         "repo_context": None,
         "structured_requirements": None,
         "current_prompt": "",
@@ -119,68 +221,62 @@ def optimize_prompt(request: OptimizeRequest) -> OptimizeResponse:
         "stop_reason": "",
         "final_prompt": "",
         "final_summary": None,
+        "node_usages": [],
         "last_error": None,
     }
 
     try:
         result = graph.invoke(initial_state)
     except Exception as exc:
-        # Outermost safety net for unhandled graph-level exceptions
+        update_run_status(run_id, "failed", "error")
         return OptimizeResponse(
-            final_prompt="",
-            fail_signature="",
-            stop_reason="error",
-            iteration_count=0,
-            risk_summary="",
-            review_summary="",
-            last_error=str(exc),
-            scan_warnings=[],
-            review_issues=[],
-            history=[],
+            run_id=run_id,
+            final_prompt="", fail_signature="", stop_reason="error",
+            iteration_count=0, risk_summary="", review_summary="",
+            last_error=str(exc), scan_warnings=[], review_issues=[], history=[],
+            total_cost_usd=0.0, total_input_tokens=0, total_output_tokens=0,
+            cost_by_node=[],
         )
 
     final_summary = result.get("final_summary")
     review_result = result.get("review_result")
     repo_context = result.get("repo_context")
+    node_usages: list[NodeUsage] = result.get("node_usages") or []
+    stop_reason: str = result.get("stop_reason", "")
 
     risk_summary = final_summary.risk_summary if final_summary else ""
     review_summary = final_summary.review_summary if final_summary else ""
     fail_signature = final_summary.fail_signature if final_summary else ""
 
-    # scan_warnings come from repo_context; never embedded in risk_summary
     scan_warnings: list[str] = []
     if repo_context is not None:
         scan_warnings = repo_context.scan_warnings
 
-    # review_issues = final cycle only
     review_issues: list[ReviewIssueOut] = []
     if review_result is not None:
         review_issues = [
             ReviewIssueOut(
-                code=issue.code,
-                rubric_item=issue.rubric_item,
-                verdict=issue.verdict,
-                reason=issue.reason,
-                fix_instruction=issue.fix_instruction,
+                code=issue.code, rubric_item=issue.rubric_item, verdict=issue.verdict,
+                reason=issue.reason, fix_instruction=issue.fix_instruction,
             )
             for issue in review_result.issues
         ]
 
-    # history is a projection of prompt_versions — not a separate structure
     history: list[HistoryItemOut] = [
         HistoryItemOut(
-            iteration=v.iteration,
-            prompt_text=v.prompt_text,
-            fail_signature=v.fail_signature,
-            reviewer_verdict=v.reviewer_verdict,
+            iteration=v.iteration, prompt_text=v.prompt_text,
+            fail_signature=v.fail_signature, reviewer_verdict=v.reviewer_verdict,
         )
         for v in result.get("prompt_versions", [])
     ]
 
-    return OptimizeResponse(
+    total_cost, total_in, total_out, cost_by_node = _aggregate_costs(node_usages)
+
+    optimize_response = OptimizeResponse(
+        run_id=run_id,
         final_prompt=result.get("final_prompt", ""),
         fail_signature=fail_signature,
-        stop_reason=result.get("stop_reason", ""),
+        stop_reason=stop_reason,
         iteration_count=result.get("iteration_count", 0),
         risk_summary=risk_summary,
         review_summary=review_summary,
@@ -188,7 +284,41 @@ def optimize_prompt(request: OptimizeRequest) -> OptimizeResponse:
         scan_warnings=scan_warnings,
         review_issues=review_issues,
         history=history,
+        total_cost_usd=total_cost,
+        total_input_tokens=total_in,
+        total_output_tokens=total_out,
+        cost_by_node=cost_by_node,
     )
+
+    try:
+        prompt_versions_out = _build_prompt_versions_out(
+            run_id, result.get("prompt_versions", []), stop_reason
+        )
+        save_run_artifacts(run_id, prompt_versions_out, node_usages)
+
+        if stop_reason != "error":
+            save_result(run_id, optimize_response)
+
+        new_status = STATUS_MAP.get(stop_reason, "failed")
+        update_run_status(run_id, new_status, stop_reason)
+
+    except Exception as e:
+        logger.error(f"Persistence failed for run {run_id}: {e}")
+
+    return optimize_response
+
+
+@router.get("/api/runs", response_model=list[RunSummary])
+def get_runs() -> list[RunSummary]:
+    return list_runs(limit=50)
+
+
+@router.get("/api/runs/{run_id}", response_model=RunDetailResponse)
+def get_run(run_id: str) -> RunDetailResponse:
+    detail = load_run_detail(run_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    return RunDetailResponse(**detail)
 
 
 @router.get("/api/health")

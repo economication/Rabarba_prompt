@@ -24,6 +24,17 @@ export default function ResultPanel({ result }: Props) {
           <span className="meta-value">{result.iteration_count}</span>
         </div>
         <div className="meta-item">
+          <span className="meta-label">Total Cost</span>
+          <span className="meta-value">${result.total_cost_usd.toFixed(4)}</span>
+        </div>
+        <div className="meta-item">
+          <span className="meta-label">Tokens (in / out)</span>
+          <span className="meta-value">
+            {result.total_input_tokens.toLocaleString()} /{' '}
+            {result.total_output_tokens.toLocaleString()}
+          </span>
+        </div>
+        <div className="meta-item">
           <span className="meta-label">Fail Signature</span>
           {failSigDisplay ? (
             <span className="meta-value meta-value--mono">{failSigDisplay}</span>

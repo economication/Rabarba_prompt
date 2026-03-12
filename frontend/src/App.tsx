@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import OptimizeForm from './components/OptimizeForm'
 import ResultPanel from './components/ResultPanel'
+import RunHistory from './components/RunHistory'
 import { type OptimizeRequest, type OptimizeResponse, optimizePrompt } from './lib/api'
 
+type Tab = 'optimize' | 'history'
+
 export default function App() {
+  const [tab, setTab] = useState<Tab>('optimize')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<OptimizeResponse | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -28,24 +32,48 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Rabarba Prompt</h1>
-        <p className="app-subtitle">
-          LangGraph-powered prompt optimizer for coding agents
-        </p>
+        <div className="app-header-top">
+          <div>
+            <h1>Rabarba Prompt</h1>
+            <p className="app-subtitle">
+              LangGraph-powered prompt optimizer for coding agents
+            </p>
+          </div>
+          <nav className="app-tabs">
+            <button
+              className={`tab-btn${tab === 'optimize' ? ' tab-btn--active' : ''}`}
+              onClick={() => setTab('optimize')}
+            >
+              Optimize
+            </button>
+            <button
+              className={`tab-btn${tab === 'history' ? ' tab-btn--active' : ''}`}
+              onClick={() => setTab('history')}
+            >
+              History
+            </button>
+          </nav>
+        </div>
       </header>
 
       <main>
-        <div className="card optimize-form">
-          <OptimizeForm onSubmit={handleSubmit} loading={loading} />
-        </div>
+        {tab === 'optimize' && (
+          <>
+            <div className="card optimize-form">
+              <OptimizeForm onSubmit={handleSubmit} loading={loading} />
+            </div>
 
-        {fetchError && (
-          <div className="banner banner--error">
-            <strong>Request failed:</strong> {fetchError}
-          </div>
+            {fetchError && (
+              <div className="banner banner--error">
+                <strong>Request failed:</strong> {fetchError}
+              </div>
+            )}
+
+            {result && <ResultPanel result={result} />}
+          </>
         )}
 
-        {result && <ResultPanel result={result} />}
+        {tab === 'history' && <RunHistory />}
       </main>
     </div>
   )
